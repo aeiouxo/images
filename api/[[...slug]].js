@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'fs';
 import { dirname, join, extname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { Buffer } from 'buffer';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FUNCTIONS_DIR = join(__dirname, '../functions');
@@ -160,20 +161,27 @@ async function handleFunctionRequest(request, pathname) {
 
   const enrichedRequest = injectCf(request);
   const env = createEnv();
+  const waitUntilPromises = [];
   const context = {
     request: enrichedRequest,
     env,
     params: funcInfo.params,
     waitUntil: (promise) => {
-      if (promise && typeof promise.catch === 'function') {
-        promise.catch(err => console.error('waitUntil error:', err));
+      if (promise && typeof promise.then === 'function') {
+        waitUntilPromises.push(
+          promise.catch(err => console.error('waitUntil error:', err))
+        );
       }
     },
     next: null,
     data: {},
   };
 
-  return await executeChain(middlewares, handler, context);
+  const response = await executeChain(middlewares, handler, context);
+  if (waitUntilPromises.length > 0) {
+    await Promise.allSettled(waitUntilPromises);
+  }
+  return response;
 }
 
 export const config = {
@@ -238,24 +246,53 @@ async function handleRequestObject(request) {
 
 export default async function handler(request, response) {
   if (response && typeof response.setHeader === 'function') {
-    const host = request.headers.host || 'localhost';
-    const protocol = request.headers['x-forwarded-proto'] || 'https';
-    const requestUrl = `${protocol}://${host}${request.url}`;
-    const req = new Request(requestUrl, {
-      method: request.method,
-      headers: request.headers,
-      body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request,
-    });
+    try {
+      const host = request.headers.host || 'localhost';
+      const protocol = request.headers['x-forwarded-proto'] || 'https';
+      const requestUrl = `${protocol}://${host}${request.url}`;
 
-    const res = await handleRequestObject(req);
-    response.statusCode = res.status;
-    res.headers.forEach((value, name) => {
-      response.setHeader(name, value);
-    });
-    const body = await res.arrayBuffer();
-    response.end(Buffer.from(body));
-    return;
+      let body = undefined;
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        body = await new Promise((resolve, reject) => {
+          const chunks = [];
+          request.on('data', (chunk) => chunks.push(chunk));
+          request.on('end', () => resolve(Buffer.concat(chunks)));
+          request.on('error', reject);
+        });
+      }
+
+      const req = new Request(requestUrl, {
+        method: request.method,
+        headers: request.headers,
+        body,
+      });
+
+      const res = await handleRequestObject(req);
+      response.statusCode = res.status;
+      res.headers.forEach((value, name) => {
+        response.setHeader(name, value);
+      });
+      const responseBody = await res.arrayBuffer();
+      response.end(Buffer.from(responseBody));
+      return;
+    } catch (err) {
+      console.error('Node handler exception:', err);
+      if (!response.headersSent) {
+        response.statusCode = 500;
+        response.setHeader('Content-Type', 'application/json');
+      }
+      response.end(JSON.stringify({ error: err.message, stack: err.stack }));
+      return;
+    }
   }
 
-  return await handleRequestObject(request);
+  try {
+    return await handleRequestObject(request);
+  } catch (err) {
+    console.error('Fetch handler exception:', err);
+    return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 }

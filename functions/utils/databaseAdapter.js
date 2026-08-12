@@ -13,9 +13,11 @@ import { UpstashKVAdapter } from './upstashRedisAdapter.js';
  */
 export function createDatabaseAdapter(env) {
     // Upstash Redis 优先于 Cloudflare KV
-    if ((env.UPSTASH_REDIS_REST_URL || env.UPSTASH_REDIS_REST_TOKEN) && typeof UpstashKVAdapter === 'function') {
+    const upstashUrl = env.UPSTASH_REDIS_REST_URL || env.upstashRedisRestUrl;
+    const upstashToken = env.UPSTASH_REDIS_REST_TOKEN || env.upstashRedisRestToken;
+    if (upstashUrl && upstashToken && typeof UpstashKVAdapter === 'function') {
         try {
-            return new UpstashKVAdapter(env);
+            return new UpstashKVAdapter({ url: upstashUrl, token: upstashToken });
         } catch (err) {
             console.error('Failed to initialize UpstashKVAdapter:', err.message);
         }
@@ -28,7 +30,7 @@ export function createDatabaseAdapter(env) {
         // 使用D1数据库
         return new D1Database(env.img_d1);
     } else {
-        console.error('No database configured. Please configure either Upstash Redis (env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN), KV (env.img_url), or D1 (env.img_d1).');
+        console.error('No database configured. Please configure either Upstash Redis (env.UPSTASH_REDIS_REST_URL and env.UPSTASH_REDIS_REST_TOKEN), KV (env.img_url), or D1 (env.img_d1).');
         return null;
     }
 }
@@ -168,17 +170,17 @@ export function getDatabase(env) {
  * @returns {Object} 配置信息
  */
 export function checkDatabaseConfig(env) {
-    var hasD1 = env.img_d1 && typeof env.img_d1.prepare === 'function';
-    var hasKV = env.img_url && typeof env.img_url.get === 'function';
-    var hasUpstash = (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) || (env.upstashRedisRestUrl && env.upstashRedisRestToken);
+    const hasD1 = env.img_d1 && typeof env.img_d1.prepare === 'function';
+    const hasKV = env.img_url && typeof env.img_url.get === 'function';
+    const hasUpstash = Boolean((env.UPSTASH_REDIS_REST_URL || env.upstashRedisRestUrl) && (env.UPSTASH_REDIS_REST_TOKEN || env.upstashRedisRestToken));
 
     return {
         hasD1: hasD1,
         hasKV: hasKV,
-        hasUpstash: Boolean(hasUpstash),
+        hasUpstash: hasUpstash,
         usingD1: hasD1,
         usingKV: !hasD1 && hasKV,
-        usingUpstash: !hasD1 && !hasKV && Boolean(hasUpstash),
-        configured: hasD1 || hasKV || Boolean(hasUpstash)
+        usingUpstash: !hasD1 && !hasKV && hasUpstash,
+        configured: hasD1 || hasKV || hasUpstash
     };
 }
