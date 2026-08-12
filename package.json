@@ -17,6 +17,9 @@
   "overrides": {
     "fast-xml-parser": "^5.3.6"
   },
+  "dependencies": {
+    "@upstash/redis": "^1.38.2"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "miniflare": "^4.20260708.1",

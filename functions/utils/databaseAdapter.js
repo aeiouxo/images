@@ -4,6 +4,7 @@
  */
 
 import { D1Database } from './d1Database.js';
+import { UpstashKVAdapter } from './upstashRedisAdapter.js';
 
 /**
  * 创建数据库适配器
@@ -11,7 +12,15 @@ import { D1Database } from './d1Database.js';
  * @returns {Object} 数据库适配器实例
  */
 export function createDatabaseAdapter(env) {
-    // 检查是否配置了数据库
+    // Upstash Redis 优先于 Cloudflare KV
+    if ((env.UPSTASH_REDIS_REST_URL || env.UPSTASH_REDIS_REST_TOKEN) && typeof UpstashKVAdapter === 'function') {
+        try {
+            return new UpstashKVAdapter(env);
+        } catch (err) {
+            console.error('Failed to initialize UpstashKVAdapter:', err.message);
+        }
+    }
+
     if (env.img_url && typeof env.img_url.get === 'function') {
         // 使用KV存储
         return new KVAdapter(env.img_url);
@@ -19,7 +28,7 @@ export function createDatabaseAdapter(env) {
         // 使用D1数据库
         return new D1Database(env.img_d1);
     } else {
-        console.error('No database configured. Please configure either KV (env.img_url) or D1 (env.img_d1).');
+        console.error('No database configured. Please configure either Upstash Redis (env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN), KV (env.img_url), or D1 (env.img_d1).');
         return null;
     }
 }
@@ -161,12 +170,15 @@ export function getDatabase(env) {
 export function checkDatabaseConfig(env) {
     var hasD1 = env.img_d1 && typeof env.img_d1.prepare === 'function';
     var hasKV = env.img_url && typeof env.img_url.get === 'function';
+    var hasUpstash = (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) || (env.upstashRedisRestUrl && env.upstashRedisRestToken);
 
     return {
         hasD1: hasD1,
         hasKV: hasKV,
+        hasUpstash: Boolean(hasUpstash),
         usingD1: hasD1,
         usingKV: !hasD1 && hasKV,
-        configured: hasD1 || hasKV
+        usingUpstash: !hasD1 && !hasKV && Boolean(hasUpstash),
+        configured: hasD1 || hasKV || Boolean(hasUpstash)
     };
 }
