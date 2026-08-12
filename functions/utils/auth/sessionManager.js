@@ -77,16 +77,21 @@ export async function validateSession(env, request, authType) {
 
     try {
         const session = JSON.parse(sessionStr);
+        console.log('[validateSession]', authType, 'session object:', JSON.stringify(session).substring(0, 100));
         // 验证 authType 匹配
         if (session.authType !== authType) {
+            console.log('[validateSession]', authType, 'authType mismatch: session.authType=' + session.authType + ', expected=' + authType);
             return { valid: false };
         }
         if (Date.now() > session.expiresAt) {
+            console.log('[validateSession]', authType, 'session expired, now=', Date.now(), 'expiresAt=', session.expiresAt);
             await db.delete(`${SESSION_PREFIX}${token}`);
             return { valid: false };
         }
+        console.log('[validateSession]', authType, 'validation success');
         return { valid: true, session };
-    } catch {
+    } catch (err) {
+        console.log('[validateSession]', authType, 'parse error:', err.message);
         return { valid: false };
     }
 }
