@@ -45,8 +45,17 @@ export async function onRequest(context) {
 export async function getUploadConfig(db, env) {
     const settings = {}
     // 读取数据库中的设置
-    const settingsStr = await db.get('manage@sysConfig@upload')
-    const settingsKV = settingsStr ? JSON.parse(settingsStr) : {}
+    const settingsData = await db.get('manage@sysConfig@upload')
+    let settingsKV = {}
+    
+    if (settingsData) {
+        // Handle both string and object returns from db.get()
+        if (typeof settingsData === 'string') {
+            settingsKV = JSON.parse(settingsData)
+        } else if (typeof settingsData === 'object' && settingsData !== null) {
+            settingsKV = settingsData
+        }
+    }
 
     // =====================读取tg渠道配置=====================
     const telegram = {}
