@@ -129,12 +129,6 @@ function injectCf(request) {
 }
 
 function normalizePath(pathname) {
-  if (pathname === '/api') {
-    return '/';
-  }
-  if (pathname.startsWith('/api/')) {
-    return pathname.slice(4);
-  }
   return pathname;
 }
 
