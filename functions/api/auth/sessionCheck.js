@@ -8,6 +8,7 @@ import { fetchSecurityConfig } from "../../utils/sysConfig.js";
  */
 export async function onRequestGet(context) {
     const { request, env } = context;
+    console.log('[sessionCheck] request received, cookies:', request.headers.get('Cookie'));
 
     // 读取安全配置，判断是否需要认证
     let securityConfig;

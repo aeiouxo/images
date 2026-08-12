@@ -63,12 +63,14 @@ export async function createSession(env, authType, username = '') {
 export async function validateSession(env, request, authType) {
     const cookieName = COOKIE_NAMES[authType] || 'session';
     const token = getCookieValue(request, cookieName);
+    console.log('[validateSession]', authType, 'cookie name:', cookieName, 'token:', token ? token.substring(0, 20) + '...' : 'null');
     if (!token) {
         return { valid: false };
     }
 
     const db = getDatabase(env);
     const sessionStr = await db.get(`${SESSION_PREFIX}${token}`);
+    console.log('[validateSession]', authType, 'session found:', !!sessionStr);
     if (!sessionStr) {
         return { valid: false };
     }
@@ -98,9 +100,11 @@ export async function validateSession(env, request, authType) {
 export async function validateAnySession(env, request) {
     // 优先检查 admin，再检查 user
     const adminResult = await validateSession(env, request, 'admin');
+    console.log('[validateAnySession] admin result:', adminResult.valid);
     if (adminResult.valid) return adminResult;
 
     const userResult = await validateSession(env, request, 'user');
+    console.log('[validateAnySession] user result:', userResult.valid);
     if (userResult.valid) return userResult;
 
     return { valid: false };
