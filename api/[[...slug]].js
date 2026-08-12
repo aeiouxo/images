@@ -1,10 +1,11 @@
-import { existsSync, statSync } from 'fs';
-import { dirname, join } from 'path';
+import { existsSync, readFileSync, statSync } from 'fs';
+import { dirname, join, extname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FUNCTIONS_DIR = join(__dirname, '../functions');
 const moduleCache = new Map();
+const STATIC_DIR = join(__dirname, '../frontend-dist');
 
 async function importModule(filePath) {
   if (moduleCache.has(filePath)) {
@@ -185,9 +186,58 @@ export const config = {
   runtime: 'nodejs',
 };
 
+function respondStaticFile(pathname) {
+  const filePath = join(STATIC_DIR, pathname);
+  if (existsSync(filePath) && statSync(filePath).isFile()) {
+    const body = readFileSync(filePath);
+    const contentType = getContentType(filePath);
+    return new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+      },
+    });
+  }
+  return null;
+}
+
+function getContentType(filePath) {
+  const ext = extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.html': return 'text/html; charset=utf-8';
+    case '.js': return 'application/javascript; charset=utf-8';
+    case '.css': return 'text/css; charset=utf-8';
+    case '.json': return 'application/json; charset=utf-8';
+    case '.svg': return 'image/svg+xml';
+    case '.png': return 'image/png';
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.gif': return 'image/gif';
+    case '.webp': return 'image/webp';
+    case '.ico': return 'image/x-icon';
+    case '.map': return 'application/json; charset=utf-8';
+    default: return 'application/octet-stream';
+  }
+}
+
 export default async function handler(request) {
   const url = new URL(request.url);
   const targetPath = normalizePath(url.pathname);
   const response = await handleFunctionRequest(request, targetPath);
-  return response || new Response('Not Found', { status: 404 });
+
+  if (response) {
+    return response;
+  }
+
+  const staticResponse = respondStaticFile(targetPath === '/' ? 'index.html' : targetPath.slice(1));
+  if (staticResponse) {
+    return staticResponse;
+  }
+
+  const spaFallback = respondStaticFile('index.html');
+  if (spaFallback) {
+    return spaFallback;
+  }
+
+  return new Response('Not Found', { status: 404 });
 }
