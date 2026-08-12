@@ -141,7 +141,23 @@ export async function getSecurityConfig(db, env) {
     const settings = {}
     // 读取数据库中的设置
     const settingsStr = await db.get('manage@sysConfig@security')
-    const settingsKV = settingsStr ? JSON.parse(settingsStr) : {}
+    let settingsKV = {}
+    if (settingsStr) {
+        // db.get 可能返回字符串（需 JSON.parse）或已解析的对象（如一些适配器返回 json）
+        if (typeof settingsStr === 'string') {
+            try {
+                settingsKV = JSON.parse(settingsStr);
+            } catch (e) {
+                console.error('Failed to parse settings JSON from DB:', e);
+                // 回退为空对象，避免抛出导致整个请求失败
+                settingsKV = {};
+            }
+        } else if (typeof settingsStr === 'object') {
+            settingsKV = settingsStr;
+        } else {
+            settingsKV = {};
+        }
+    }
 
     // 认证管理
     const kvAuth = settingsKV.auth || {}
