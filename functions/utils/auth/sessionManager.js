@@ -69,14 +69,25 @@ export async function validateSession(env, request, authType) {
     }
 
     const db = getDatabase(env);
-    const sessionStr = await db.get(`${SESSION_PREFIX}${token}`);
-    console.log('[validateSession]', authType, 'session found:', !!sessionStr);
-    if (!sessionStr) {
+    const sessionData = await db.get(`${SESSION_PREFIX}${token}`);
+    console.log('[validateSession]', authType, 'session found:', !!sessionData);
+    if (!sessionData) {
         return { valid: false };
     }
 
     try {
-        const session = JSON.parse(sessionStr);
+        // Handle both string and object returns from db.get()
+        // (Upstash Redis with encoding: 'json' returns objects automatically)
+        let session;
+        if (typeof sessionData === 'string') {
+            session = JSON.parse(sessionData);
+        } else if (typeof sessionData === 'object' && sessionData !== null) {
+            session = sessionData;
+        } else {
+            console.log('[validateSession]', authType, 'invalid sessionData type:', typeof sessionData);
+            return { valid: false };
+        }
+        
         console.log('[validateSession]', authType, 'session object:', JSON.stringify(session).substring(0, 100));
         // 验证 authType 匹配
         if (session.authType !== authType) {
@@ -175,9 +186,18 @@ export async function destroySessionsByAuthType(env, authType) {
 
         for (const key of keys) {
             try {
-                const sessionStr = await db.get(key.name);
-                if (sessionStr) {
-                    const session = JSON.parse(sessionStr);
+                const sessionData = await db.get(key.name);
+                if (sessionData) {
+                    let session;
+                    if (typeof sessionData === 'string') {
+                        session = JSON.parse(sessionData);
+                    } else if (typeof sessionData === 'object' && sessionData !== null) {
+                        session = sessionData;
+                    } else {
+                        await db.delete(key.name);
+                        destroyed++;
+                        continue;
+                    }
                     if (session.authType === authType) {
                         await db.delete(key.name);
                         destroyed++;
