@@ -268,8 +268,11 @@ export default async function handler(request, response) {
       });
 
       const res = await handleRequestObject(req);
+      console.log('[api handler] response status:', res.status, 'path:', targetPath);
+      console.log('[api handler] response headers:', Array.from(res.headers.entries()));
       response.statusCode = res.status;
       res.headers.forEach((value, name) => {
+        console.log(`[api handler] setting header ${name}: ${value.substring ? value.substring(0, 50) : value}...`);
         response.setHeader(name, value);
       });
       const responseBody = await res.arrayBuffer();
