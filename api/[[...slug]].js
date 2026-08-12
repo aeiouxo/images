@@ -220,7 +220,7 @@ function getContentType(filePath) {
   }
 }
 
-export default async function handler(request) {
+async function handleRequestObject(request) {
   const url = new URL(request.url);
   const targetPath = normalizePath(url.pathname);
   const response = await handleFunctionRequest(request, targetPath);
@@ -240,4 +240,28 @@ export default async function handler(request) {
   }
 
   return new Response('Not Found', { status: 404 });
+}
+
+export default async function handler(request, response) {
+  if (response && typeof response.setHeader === 'function') {
+    const host = request.headers.host || 'localhost';
+    const protocol = request.headers['x-forwarded-proto'] || 'https';
+    const requestUrl = `${protocol}://${host}${request.url}`;
+    const req = new Request(requestUrl, {
+      method: request.method,
+      headers: request.headers,
+      body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request,
+    });
+
+    const res = await handleRequestObject(req);
+    response.statusCode = res.status;
+    res.headers.forEach((value, name) => {
+      response.setHeader(name, value);
+    });
+    const body = await res.arrayBuffer();
+    response.end(Buffer.from(body));
+    return;
+  }
+
+  return await handleRequestObject(request);
 }
