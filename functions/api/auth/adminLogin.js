@@ -5,10 +5,8 @@ import { getDatabase } from "../../utils/databaseAdapter.js";
 
 export async function onRequestPost(context) {
     const { request, env } = context;
-    console.log('[adminLogin] request received');
 
     const { username, password } = await request.json();
-    console.log('[adminLogin] username:', username);
 
     // 读取安全设置
     let securityConfig;
@@ -23,7 +21,6 @@ export async function onRequestPost(context) {
     }
     const adminUsername = securityConfig.auth.admin.adminUsername;
     const adminPassword = securityConfig.auth.admin.adminPassword;
-    console.log('[adminLogin] stored username:', adminUsername);
 
     const usernameConfigured = !!(adminUsername && adminUsername.trim());
     const passwordConfigured = !!(adminPassword && adminPassword.trim());
@@ -65,15 +62,11 @@ export async function onRequestPost(context) {
 
     // 创建会话并通过 HttpOnly Cookie 返回
     const { cookie } = await createSession(env, 'admin');
-    console.log('[adminLogin] session created, cookie:', cookie.substring(0, 50) + '...');
-
-    const response = new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true }), {
         status: 200,
         headers: {
             'Content-Type': 'application/json',
             'Set-Cookie': cookie,
         },
     });
-    console.log('[adminLogin] response headers:', Array.from(response.headers.entries()));
-    return response;
 }

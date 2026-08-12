@@ -5,11 +5,9 @@ import { getDatabase } from "../../utils/databaseAdapter.js";
 
 export async function onRequestPost(context) {
     const { request, env } = context;
-    console.log('[login] user login request received');
 
     const jsonRequest = await request.json();
     const authCode = jsonRequest.authCode;
-    console.log('[login] authCode provided:', !!authCode);
 
     // 读取安全设置
     let securityConfig;
@@ -34,7 +32,6 @@ export async function onRequestPost(context) {
 
     // 创建会话并通过 HttpOnly Cookie 返回
     const { cookie } = await createSession(env, 'user');
-    console.log('[login] user session created successfully, cookie:', cookie.substring(0, 80));
 
     return new Response('Login success', {
         status: 200,

@@ -63,14 +63,12 @@ export async function createSession(env, authType, username = '') {
 export async function validateSession(env, request, authType) {
     const cookieName = COOKIE_NAMES[authType] || 'session';
     const token = getCookieValue(request, cookieName);
-    console.log('[validateSession]', authType, 'cookie name:', cookieName, 'token:', token ? token.substring(0, 20) + '...' : 'null');
     if (!token) {
         return { valid: false };
     }
 
     const db = getDatabase(env);
     const sessionData = await db.get(`${SESSION_PREFIX}${token}`);
-    console.log('[validateSession]', authType, 'session found:', !!sessionData);
     if (!sessionData) {
         return { valid: false };
     }
@@ -84,25 +82,19 @@ export async function validateSession(env, request, authType) {
         } else if (typeof sessionData === 'object' && sessionData !== null) {
             session = sessionData;
         } else {
-            console.log('[validateSession]', authType, 'invalid sessionData type:', typeof sessionData);
             return { valid: false };
         }
         
-        console.log('[validateSession]', authType, 'session object:', JSON.stringify(session).substring(0, 100));
         // 验证 authType 匹配
         if (session.authType !== authType) {
-            console.log('[validateSession]', authType, 'authType mismatch: session.authType=' + session.authType + ', expected=' + authType);
             return { valid: false };
         }
         if (Date.now() > session.expiresAt) {
-            console.log('[validateSession]', authType, 'session expired, now=', Date.now(), 'expiresAt=', session.expiresAt);
             await db.delete(`${SESSION_PREFIX}${token}`);
             return { valid: false };
         }
-        console.log('[validateSession]', authType, 'validation success');
         return { valid: true, session };
-    } catch (err) {
-        console.log('[validateSession]', authType, 'parse error:', err.message);
+    } catch {
         return { valid: false };
     }
 }
@@ -116,11 +108,9 @@ export async function validateSession(env, request, authType) {
 export async function validateAnySession(env, request) {
     // 优先检查 admin，再检查 user
     const adminResult = await validateSession(env, request, 'admin');
-    console.log('[validateAnySession] admin result:', adminResult.valid);
     if (adminResult.valid) return adminResult;
 
     const userResult = await validateSession(env, request, 'user');
-    console.log('[validateAnySession] user result:', userResult.valid);
     if (userResult.valid) return userResult;
 
     return { valid: false };
